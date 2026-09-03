@@ -27,7 +27,7 @@ jobs:
 
       - name: Download and execute the Chitanda Meta core
         run: |
-          version_url=https://github.com/violetaini/chitanda/releases/download/chitanda-mihomo-latest/version.txt
+          version_url=https://raw.githubusercontent.com/violetaini/chitanda/main/releases/mihomo/version.txt
           version=$(curl -fsSL "$version_url")
           test "$version" = "$(printf '%s' "$version" | tr -d '\r\n')"
           test "$version" != ""
