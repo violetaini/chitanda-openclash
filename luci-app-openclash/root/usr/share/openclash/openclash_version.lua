@@ -9,7 +9,7 @@ local M = {}
 
 local VERSION_CACHE_FILE = "/tmp/openclash_version_history.json"
 local CDN_CACHE_FILE = "/tmp/openclash_cdn_info.json"
-local CHITANDA_MIHOMO_VERSION_URL = "https://github.com/violetaini/chitanda/releases/download/chitanda-mihomo-latest/version.txt"
+local CHITANDA_MIHOMO_VERSION_URL = "https://raw.githubusercontent.com/violetaini/chitanda/main/releases/mihomo/version.txt"
 
 local function trim(s)
 	if not s then return "" end
