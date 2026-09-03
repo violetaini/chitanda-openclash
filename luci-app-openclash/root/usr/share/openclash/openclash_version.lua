@@ -9,6 +9,7 @@ local M = {}
 
 local VERSION_CACHE_FILE = "/tmp/openclash_version_history.json"
 local CDN_CACHE_FILE = "/tmp/openclash_cdn_info.json"
+local CHITANDA_MIHOMO_VERSION_URL = "https://github.com/violetaini/chitanda/releases/download/chitanda-mihomo-latest/version.txt"
 
 local function trim(s)
 	if not s then return "" end
@@ -189,6 +190,18 @@ local function try_fetch(urls, validator)
 			pcall(job.fdi.close, job.fdi)
 			nixio.kill(job.pid, 9)
 		end
+	end
+	return ""
+end
+
+local function fetch_chitanda_mihomo_version()
+	local raw = try_fetch({ CHITANDA_MIHOMO_VERSION_URL }, function(buf)
+		local version = trim((buf or ""):match("^[^\n\r]*") or "")
+		return version:match("^v?%d+%.%d+%.%d+[%w%._%-]*$") ~= nil
+	end)
+	local version = trim((raw or ""):match("^[^\n\r]*") or "")
+	if version:match("^v?%d+%.%d+%.%d+[%w%._%-]*$") then
+		return version
 	end
 	return ""
 end
@@ -501,9 +514,10 @@ function M.fetch_version_history(branch, force, cdn, latest_only)
 		end
 
 		if not cur_oix then
+			core_meta_latest = fetch_chitanda_mihomo_version()
+
 			local core_raw = try_fetch(build_fetch_urls(github_address_mod, "core/" .. branch .. "/core_version"))
 			if core_raw and core_raw ~= "" then
-				core_meta_latest = trim(core_raw:match("^[^\n\r]*") or "")
 				local after = core_raw:match("[\n\r]+(.*)")
 				if after then
 					core_smart_latest = trim(after:match("^[^\n\r]*") or "")

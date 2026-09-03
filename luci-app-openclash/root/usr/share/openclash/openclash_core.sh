@@ -52,6 +52,7 @@ OIX_TOKEN=$(uci_get_config "oix_token")
 small_flash_memory=$(uci_get_config "small_flash_memory")
 CPU_MODEL=$(uci_get_config "core_version")
 RELEASE_BRANCH=$(uci_get_config "release_branch" || echo "master")
+CHITANDA_CORE_RELEASE="https://github.com/violetaini/chitanda/releases/download"
 
 if [ -z "$DIRECT_CORE_URL" ]; then
    lua /usr/share/openclash/openclash_version.lua "$github_address_mod" 2>/dev/null
@@ -78,6 +79,8 @@ else
 fi
 
 TARGET_CORE_PATH="$meta_core_path"
+CHITANDA_CORE_VERSION_FILE="$meta_core_path/.chitanda-mihomo-version"
+CHITANDA_CORE_VERSION=$(cat "$CHITANDA_CORE_VERSION_FILE" 2>/dev/null)
 CORE_CV=$($TARGET_CORE_PATH -v 2>/dev/null |awk -F ' ' '{print $3}' |head -1)
 TMP_FILE="${TARGET_CORE_PATH}.new.$$"
 
@@ -94,7 +97,7 @@ fi
 
 [ "$C_CORE_TYPE" != "$CORE_TYPE" ] || [ -z "$C_CORE_TYPE" ] && restart=1
 
-if [ -n "$DIRECT_CORE_URL" ] || [ "$CORE_CV" != "$CORE_LV" ] || [ -z "$CORE_CV" ]; then
+if [ -n "$DIRECT_CORE_URL" ] || [ "$CORE_TYPE" = "Meta" -a "$CHITANDA_CORE_VERSION" != "$CORE_LV" ] || [ "$CORE_CV" != "$CORE_LV" ] || [ -z "$CORE_CV" ]; then
    if [ "$CPU_MODEL" != 0 ]; then
       LOG_TIP "【"$CORE_TYPE"】Core Downloading, Please Try to Download and Upload Manually If Fails"
       # If $2 is a full download URL, use it directly
@@ -109,7 +112,9 @@ if [ -n "$DIRECT_CORE_URL" ] || [ "$CORE_CV" != "$CORE_LV" ] || [ -z "$CORE_CV" 
             DOWNLOAD_URL="$OIX_CORE_P_URL"
          fi
       else
-         if [ "$github_address_mod" != "0" ]; then
+         if [ "$CORE_TYPE" = "Meta" ]; then
+            DOWNLOAD_URL="${CHITANDA_CORE_RELEASE}/${CORE_LV}/clash-${CPU_MODEL}.tar.gz"
+         elif [ "$github_address_mod" != "0" ]; then
             if [ "$github_address_mod" == "https://cdn.jsdelivr.net/" ] || [ "$github_address_mod" == "https://fastly.jsdelivr.net/" ] || [ "$github_address_mod" == "https://testingcf.jsdelivr.net/" ]; then
                DOWNLOAD_URL="${github_address_mod}gh/vernesong/OpenClash@core/${CORE_URL_PATH}/clash-${CPU_MODEL}.tar.gz"
             else
@@ -166,6 +171,9 @@ if [ -n "$DIRECT_CORE_URL" ] || [ "$CORE_CV" != "$CORE_LV" ] || [ -z "$CORE_CV" 
                mv_err=$(mv -f "$TMP_FILE" "$TARGET_CORE_PATH" 2>&1)
 
                if [ "$?" == "0" ]; then
+                  if [ "$CORE_TYPE" = "Meta" ]; then
+                     printf '%s\n' "$CORE_LV" > "$CHITANDA_CORE_VERSION_FILE"
+                  fi
                   LOG_TIP "【"$CORE_TYPE"】Core Update Successful"
                   UPDATE_SUCCESS=1
                   restart=1
