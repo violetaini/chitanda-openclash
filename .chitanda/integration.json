@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "project": "openclash",
+  "upstream": {
+    "repository": "vernesong/OpenClash",
+    "defaultBranch": "master",
+    "tagSource": "releases/latest"
+  },
+  "coreIntegration": {
+    "mode": "openwrt-artifact-channel",
+    "entrypoint": "luci-app-openclash/root/usr/share/openclash/openclash_core.sh",
+    "versionEntry": "luci-app-openclash/root/usr/share/openclash/openclash_version.lua",
+    "requiredArchive": "tar.gz",
+    "requiredExecutable": "clash",
+    "requiredArchitectures": [
+      "amd64",
+      "386",
+      "armv7",
+      "arm64",
+      "mips",
+      "mips64",
+      "mips64le",
+      "mipsle",
+      "ppc64le",
+      "riscv64",
+      "loong64"
+    ]
+  },
+  "sync": {
+    "mode": "candidate",
+    "requireCoreArtifactParity": true,
+    "requireSmokeTests": true
+  }
+}
