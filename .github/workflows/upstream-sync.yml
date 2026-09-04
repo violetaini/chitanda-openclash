@@ -1,0 +1,72 @@
+name: Upstream Sync & Auto Release
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # Daily at 03:00 UTC
+  workflow_dispatch:
+    inputs:
+      force_sync:
+        description: 'Force sync and build even if release tag exists'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  check-and-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check Latest Upstream Tag
+        id: check_upstream
+        run: |
+          LATEST_TAG=$(curl -s https://api.github.com/repos/vernesong/OpenClash/releases/latest | jq -r .tag_name)
+          if [ "$LATEST_TAG" == "null" ] || [ -z "$LATEST_TAG" ]; then
+            LATEST_TAG=$(curl -s https://api.github.com/repos/vernesong/OpenClash/tags | jq -r '.[0].name')
+          fi
+          echo "Latest upstream OpenClash tag: $LATEST_TAG"
+          echo "upstream_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+
+          # Check if this release already exists in our repo
+          MY_RELEASE=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/${{ github.repository }}/releases/tags/$LATEST_TAG | jq -r .id)
+          
+          if [ "${{ inputs.force_sync }}" == "true" ] || [ "$MY_RELEASE" == "null" ] || [ -z "$MY_RELEASE" ]; then
+            echo "New upstream version detected: $LATEST_TAG. Triggering sync."
+            echo "should_sync=true" >> $GITHUB_OUTPUT
+          else
+            echo "Release $LATEST_TAG already exists in our repo. Everything up to date."
+            echo "should_sync=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Sync and Patch
+        if: steps.check_upstream.outputs.should_sync == 'true'
+        run: |
+          TAG="${{ steps.check_upstream.outputs.upstream_tag }}"
+          echo "Syncing upstream tag $TAG..."
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Add upstream remote and fetch
+          git remote add upstream https://github.com/vernesong/OpenClash.git || git remote set-url upstream https://github.com/vernesong/OpenClash.git
+          git fetch upstream --tags
+
+          # Merge upstream tag into main
+          git merge -X theirs "$TAG" --no-edit -m "chore(sync): sync upstream OpenClash $TAG" || (git merge --abort && git checkout "$TAG" -- luci-app-openclash)
+
+          # Apply Chitanda patch
+          python3 scripts/patch-openclash.py .
+
+          # Commit and push
+          git add luci-app-openclash/
+          if ! git diff --staged --quiet; then
+            git commit -m "feat(core): apply Chitanda core redirection for $TAG"
+          fi
+          
+          git push origin main
