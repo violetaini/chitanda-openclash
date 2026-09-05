@@ -25,18 +25,43 @@ jobs:
 
       - name: Check Latest Upstream Tag
         id: check_upstream
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          LATEST_TAG=$(curl -s https://api.github.com/repos/vernesong/OpenClash/releases/latest | jq -r .tag_name)
-          if [ "$LATEST_TAG" == "null" ] || [ -z "$LATEST_TAG" ]; then
-            LATEST_TAG=$(curl -s https://api.github.com/repos/vernesong/OpenClash/tags | jq -r '.[0].name')
+          LATEST_TAG=""
+          if command -v gh >/dev/null 2>&1; then
+            LATEST_TAG=$(gh api repos/vernesong/OpenClash/releases/latest --jq '.tag_name // empty' 2>/dev/null || true)
+            if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then
+              LATEST_TAG=$(gh api repos/vernesong/OpenClash/tags --jq 'if type=="array" and length>0 then .[0].name else empty end' 2>/dev/null || true)
+            fi
           fi
+
+          if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then
+            AUTH_HEADER="Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"
+            API_HEADER="Accept: application/vnd.github+json"
+            LATEST_TAG=$(curl -fsSL -H "$AUTH_HEADER" -H "$API_HEADER" https://api.github.com/repos/vernesong/OpenClash/releases/latest 2>/dev/null | jq -r '.tag_name // empty' 2>/dev/null || true)
+            if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then
+              LATEST_TAG=$(curl -fsSL -H "$AUTH_HEADER" -H "$API_HEADER" https://api.github.com/repos/vernesong/OpenClash/tags 2>/dev/null | jq -r 'if type=="array" and length>0 then .[0].name else empty end' 2>/dev/null || true)
+            fi
+          fi
+
+          if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then
+            echo "::error::Failed to fetch latest upstream OpenClash tag from vernesong/OpenClash"
+            exit 1
+          fi
+
           echo "Latest upstream OpenClash tag: $LATEST_TAG"
           echo "upstream_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
 
           # Check if this release already exists in our repo
-          MY_RELEASE=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/${{ github.repository }}/releases/tags/$LATEST_TAG | jq -r .id)
-          
-          if [ "${{ inputs.force_sync }}" == "true" ] || [ "$MY_RELEASE" == "null" ] || [ -z "$MY_RELEASE" ]; then
+          MY_RELEASE=""
+          if command -v gh >/dev/null 2>&1; then
+            MY_RELEASE=$(gh api "repos/${{ github.repository }}/releases/tags/$LATEST_TAG" --jq '.id // empty' 2>/dev/null || true)
+          else
+            MY_RELEASE=$(curl -fsSL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${{ github.repository }}/releases/tags/$LATEST_TAG" 2>/dev/null | jq -r '.id // empty' 2>/dev/null || true)
+          fi
+
+          if [ "${{ inputs.force_sync }}" = "true" ] || [ -z "$MY_RELEASE" ] || [ "$MY_RELEASE" = "null" ]; then
             echo "New upstream version detected: $LATEST_TAG. Triggering sync."
             echo "should_sync=true" >> $GITHUB_OUTPUT
           else
